@@ -1,0 +1,473 @@
+{% extends "base.html" %}
+
+{% block title %}Incident Details #{{ incident.id }} | SOC Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Back button and incident header -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <a href="{{ url_for('main.incidents') }}" class="btn btn-secondary"style="
+    /* width: 50px; */
+    margin-right: 20px;
+">
+            <i class="bi bi-arrow-left"></i> Back to Incidents
+        </a>
+        <h2 class="mb-0">
+            <span class="badge bg-{{ 'danger' if incident.severity == 'Critical' else 'warning' if incident.severity == 'High' else 'primary' if incident.severity == 'Medium' else 'secondary' }}">
+                {{ incident.severity }}
+            </span>
+            Incident #{{ incident.id }}: {{ incident.type }}
+        </h2>
+        <span class="text-muted">{{ incident.timestamp|format_datetime }}</span>
+    </div>
+
+    <div class="row">
+        <!-- Left column - Incident details -->
+        <div class="col-md-8">
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Incident Details</h5>
+                    <span class="badge bg-{{ 'success' if incident.status == 'Closed' else 'warning' if incident.status == 'In Progress' else 'danger' if incident.status == 'New' else 'secondary' }}">
+                        {{ incident.status }}
+                    </span>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <p><strong>Source IP:</strong> {{ incident.source_ip }}</p>
+                            <p><strong>Type:</strong> {{ incident.type }}</p>
+                            <p><strong>Severity:</strong> {{ incident.severity }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Reported:</strong> {{ incident.timestamp|format_datetime }}</p>
+                            <p><strong>ML Model:</strong> {{ incident.ml_model_name }}</p>
+                            <p><strong>Confidence Score:</strong> {{ (incident.confidence_score * 100)|round(2) }}%</p>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <h6>Description</h6>
+                        <div class="alert alert-light">
+                            {{ incident.description }}
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <h6>Assigned To</h6>
+                        {% if incident.assigned_to %}
+                            <p>{{ incident.assigned_user.username if incident.assigned_user else 'Unassigned' }}</p>
+                        {% else %}
+                            <p class="text-muted">Not assigned</p>
+                            {% if current_user.role == 'manager' %}
+                                <div class="dropdown">
+                                    <button class="btn btn-outline-primary btn-sm dropdown-toggle" type="button" id="assignDropdown" data-bs-toggle="dropdown">
+                                        Assign to analyst
+                                    </button>
+                                    <ul class="dropdown-menu" aria-labelledby="assignDropdown">
+                                        {% for analyst in analysts %}
+                                            <li>
+                                                <form action="{{ url_for('main.assign_incident', incident_id=incident.id, user_id=analyst.id) }}" method="post" style="display:inline;">
+                                                    <button type="submit" class="dropdown-item">{{ analyst.username }}</button>
+                                                </form>
+                                            </li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+
+                    <!-- Status Update Form -->
+                    <form action="{{ url_for('main.update_incident', incident_id=incident.id) }}" method="post" class="mb-0">
+                        <div class="mb-3">
+                            <label for="status" class="form-label">Update Status</label>
+                            <select class="form-select" id="status" name="status">
+                                <option value="New" {% if incident.status == 'New' %}selected{% endif %}>New</option>
+                                <option value="In Progress" {% if incident.status == 'In Progress' %}selected{% endif %}>In Progress</option>
+                                <option value="Closed" {% if incident.status == 'Closed' %}selected{% endif %}>Closed</option>
+                                <option value="False Positive" {% if incident.status == 'False Positive' %}selected{% endif %}>False Positive</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Update Status</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- LLM Report -->
+            {% if llm_report %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">LLM Analysis</h5>
+                </div>
+                <div class="card-body">
+                    <p>{{ llm_report.narrative }}</p>
+                    
+                    {% if llm_report.actions %}
+                    <h6>Recommended Actions</h6>
+                    <ul>
+                        {% for action in llm_report.actions %}
+                            <li>{{ action }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Monitoring Data -->
+            {% if monitoring_data %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Monitoring Data</h5>
+                </div>
+                <div class="card-body">
+                    <!-- Network Monitoring -->
+                    {% if monitoring_data.network %}
+                    <div class="mb-3">
+                        <h6>Network Monitoring</h6>
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Source IP</th>
+                                        <th>Destination IP</th>
+                                        <th>Protocol</th>
+                                        <th>Activity</th>
+                                        <th>Timestamp</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for entry in monitoring_data.network.entries %}
+                                    <tr>
+                                        <td>{{ entry.source_ip }}</td>
+                                        <td>{{ entry.destination_ip }}</td>
+                                        <td>{{ entry.protocol }}</td>
+                                        <td>{{ entry.activity }}</td>
+                                        <td>{{ entry.timestamp }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Email Monitoring -->
+                    {% if monitoring_data.email %}
+                    <div class="mb-3">
+                        <h6>Email Monitoring</h6>
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Sender</th>
+                                        <th>Subject</th>
+                                        <th>Timestamp</th>
+                                        <th>Indicators</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for entry in monitoring_data.email.entries %}
+                                    <tr>
+                                        <td>{{ entry.sender }}</td>
+                                        <td>{{ entry.subject }}</td>
+                                        <td>{{ entry.timestamp }}</td>
+                                        <td>{{ entry.indicators|join(", ") }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Wazuh Logs -->
+                    {% if monitoring_data.wazuh %}
+                    <div class="mb-3">
+                        <h6>Wazuh Security Logs</h6>
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Rule ID</th>
+                                        <th>Description</th>
+                                        <th>Level</th>
+                                        <th>Agent</th>
+                                        <th>Timestamp</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for entry in monitoring_data.wazuh.entries %}
+                                    <tr>
+                                        <td>{{ entry.rule_id }}</td>
+                                        <td>{{ entry.description }}</td>
+                                        <td>{{ entry.level }}</td>
+                                        <td>{{ entry.agent }}</td>
+                                        <td>{{ entry.timestamp }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- PE File Analysis -->
+                    {% if monitoring_data.pe %}
+                    <div class="mb-3">
+                        <h6>PE File Analysis</h6>
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Filename</th>
+                                        <th>Hash</th>
+                                        <th>Detected</th>
+                                        <th>Timestamp</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for entry in monitoring_data.pe.entries %}
+                                    <tr>
+                                        <td>{{ entry.filename }}</td>
+                                        <td>{{ entry.hash }}</td>
+                                        <td>{{ entry.detected }}</td>
+                                        <td>{{ entry.timestamp }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Monitoring Services Data -->
+                    {% if monitoring_data.services %}
+                    <div class="accordion" id="monitoringServicesAccordion">
+                        {% for service_id, service in monitoring_data.services.items() %}
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="heading{{ service_id }}">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ service_id }}">
+                                    {{ service.name }} <span class="badge bg-primary ms-2">{{ service.count }} results</span>
+                                </button>
+                            </h2>
+                            <div id="collapse{{ service_id }}" class="accordion-collapse collapse" aria-labelledby="heading{{ service_id }}" data-bs-parent="#monitoringServicesAccordion">
+                                <div class="accordion-body">
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-striped">
+                                            <thead>
+                                                <tr>
+                                                    {% for key in service.results[0].keys() %}
+                                                    <th>{{ key|capitalize }}</th>
+                                                    {% endfor %}
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for entry in service.results %}
+                                                <tr>
+                                                    {% for key, value in entry.items() %}
+                                                    <td>{{ value }}</td>
+                                                    {% endfor %}
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Right column - Enrichments and ML data -->
+        <div class="col-md-4">
+            <!-- Enrichment Data -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Enrichment Data</h5>
+                </div>
+                <div class="card-body">
+                    {% if enrichments %}
+                        <div class="accordion" id="enrichmentAccordion">
+                            {% for source, data in enrichments.items() %}
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="heading{{ source }}">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ source }}">
+                                        {{ source }} Enrichment
+                                    </button>
+                                </h2>
+                                <div id="collapse{{ source }}" class="accordion-collapse collapse" aria-labelledby="heading{{ source }}" data-bs-parent="#enrichmentAccordion">
+                                    <div class="accordion-body">
+                                        {% if source == 'IP' %}
+                                            <p><strong>IP:</strong> {{ data.ip }}</p>
+                                            <p><strong>Country:</strong> {{ data.country }}</p>
+                                            <p><strong>ASN:</strong> {{ data.asn }}</p>
+                                            <p><strong>Provider:</strong> {{ data.provider }}</p>
+                                            <p><strong>Risk Score:</strong> {{ data.risk_score }}</p>
+                                            <p><strong>Categories:</strong> {{ data.categories|join(', ') }}</p>
+                                        {% elif source == 'URL' %}
+                                            <p><strong>URL:</strong> {{ data.url }}</p>
+                                            <p><strong>Domain:</strong> {{ data.domain }}</p>
+                                            <p><strong>Category:</strong> {{ data.category }}</p>
+                                            <p><strong>Created:</strong> {{ data.created }}</p>
+                                            <p><strong>Risk Score:</strong> {{ data.risk_score }}</p>
+                                        {% elif source == 'File' %}
+                                            <p><strong>Filename:</strong> {{ data.filename }}</p>
+                                            <p><strong>MD5:</strong> {{ data.md5 }}</p>
+                                            <p><strong>SHA256:</strong> {{ data.sha256 }}</p>
+                                            <p><strong>Detection Ratio:</strong> {{ data.detection_ratio }}</p>
+                                            <p><strong>First Seen:</strong> {{ data.first_seen }}</p>
+                                        {% else %}
+                                            <pre>{{ data|tojson(indent=2) }}</pre>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted">No enrichment data available.</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- ML Analysis -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">ML Analysis</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">Anomaly Score</label>
+                        <div class="progress">
+                            <div class="progress-bar bg-{{ 'danger' if random_values.anomaly_score > 0.75 else 'warning' if random_values.anomaly_score > 0.5 else 'success' }}" 
+                                 role="progressbar" 
+                                 style="width: {{ random_values.anomaly_score * 100 }}%" 
+                                 aria-valuenow="{{ random_values.anomaly_score * 100 }}" 
+                                 aria-valuemin="0" 
+                                 aria-valuemax="100">
+                                {{ (random_values.anomaly_score * 100)|round(2) }}%
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Behavior Deviation</label>
+                        <div class="progress">
+                            <div class="progress-bar bg-{{ 'danger' if random_values.behavior_deviation > 0.75 else 'warning' if random_values.behavior_deviation > 0.5 else 'success' }}" 
+                                 role="progressbar" 
+                                 style="width: {{ random_values.behavior_deviation * 100 }}%" 
+                                 aria-valuenow="{{ random_values.behavior_deviation * 100 }}" 
+                                 aria-valuemin="0" 
+                                 aria-valuemax="100">
+                                {{ (random_values.behavior_deviation * 100)|round(2) }}%
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <p><strong>IOC Matches:</strong> <span class="badge bg-warning">{{ random_values.ioc_matches }}</span></p>
+                        <p><strong>Model Used:</strong> {{ incident.ml_model_name }}</p>
+                        <p><strong>Confidence Score:</strong> <span class="badge bg-info">{{ (incident.confidence_score * 100)|round(2) }}%</span></p>
+                    </div>
+
+                    <div class="d-grid">
+                        <button class="btn btn-outline-secondary btn-sm" type="button" disabled>
+                            <i class="bi bi-arrow-repeat"></i> Re-analyze with current model
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Timeline -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Incident Timeline</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group list-group-flush">
+                        <!-- Showing incident activity timeline -->
+                        <li class="list-group-item px-0">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <i class="bi bi-exclamation-circle text-danger"></i>
+                                    <span>Incident detected</span>
+                                </div>
+                                <small class="text-muted">{{ incident.timestamp|format_datetime }}</small>
+                            </div>
+                        </li>
+                        {% if incident.analytics_logs %}
+                            {% for log in incident.analytics_logs|sort(attribute='timestamp') %}
+                                <li class="list-group-item px-0">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            {% if log.event_type == 'status_change' %}
+                                                <i class="bi bi-arrow-repeat text-info"></i>
+                                                <span>Status changed to {{ incident.status }}</span>
+                                            {% elif log.event_type == 'assignment' %}
+                                                <i class="bi bi-person text-primary"></i>
+                                                <span>Assigned to {{ incident.assigned_user.username if incident.assigned_user else 'Unassigned' }}</span>
+                                            {% elif log.event_type == 'enrichment' %}
+                                                <i class="bi bi-search text-success"></i>
+                                                <span>Enrichment data added</span>
+                                            {% else %}
+                                                <i class="bi bi-activity"></i>
+                                                <span>{{ log.event_type|capitalize }}</span>
+                                            {% endif %}
+                                        </div>
+                                        <small class="text-muted">{{ log.timestamp|format_datetime }}</small>
+                                    </div>
+                                </li>
+                            {% endfor %}
+                        {% else %}
+                            <li class="list-group-item px-0 text-muted">No additional activity</li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    $(document).ready(function() {
+        // Reload page every 5 minutes for updates
+        setTimeout(function() {
+            location.reload();
+        }, 5 * 60 * 1000);
+        
+        // Show confirmation before changing status to closed
+        $('form').on('submit', function(e) {
+            const status = $('#status').val();
+            if (status === 'Closed' || status === 'False Positive') {
+                if (!confirm(`Are you sure you want to mark this incident as ${status}?`)) {
+                    e.preventDefault();
+                }
+            }
+        });
+        
+        // Auto-fetch enrichment data if none exists
+        {% if not enrichments %}
+        /*
+        $.ajax({
+            url: `/api/incident/${incident.id}/enrich`,
+            type: 'POST',
+            success: function(response) {
+                if (response.status === 'success') {
+                    // Refresh page to show new enrichment data
+                    location.reload();
+                }
+            }
+        });
+        */
+        {% endif %}
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h1 class="my-4">Analytics Dashboard</h1>
+    
+    <!-- Export Buttons -->
+    <div class="mb-4">
+        <a href="{{ url_for('main.export_analytics_csv') }}" class="btn btn-outline-primary">
+            <i class="bi bi-file-earmark-spreadsheet"></i> Export CSV
+        </a>
+        <a href="{{ url_for('main.export_analytics_pdf') }}" class="btn btn-outline-danger ms-2">
+            <i class="bi bi-file-earmark-pdf"></i> Export PDF
+        </a>
+    </div>
+    
+    <!-- MTTR Section -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Mean Time to Respond (MTTR)</h5>
+        </div>
+        <div class="card-body">
+            {% if mttr_data %}
+            <canvas id="mttrChart"></canvas>
+            {% else %}
+            <div class="alert alert-info">No MTTR data available</div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Top Alerts -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5>Top Alert Types</h5>
+                </div>
+                <div class="card-body">
+                    {% if top_alerts %}
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Alert Type</th>
+                                <th>Count</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for alert in top_alerts %}
+                            <tr>
+                                <td>{{ alert.type }}</td>
+                                <td>{{ alert.count }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <div class="alert alert-info">No alert data available</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5>Alert Volume Trends</h5>
+                </div>
+                <div class="card-body">
+                    {% if volume_trends and volume_trends.counts|sum > 0 %}
+                    <canvas id="volumeChart"></canvas>
+                    {% else %}
+                    <div class="alert alert-info">No volume data available</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Analyst Performance -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Analyst Performance</h5>
+        </div>
+        <div class="card-body">
+            {% if analyst_performance %}
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Analyst</th>
+                        <th>Resolved</th>
+                        <th>MTTR</th>
+                        <th>False Positives</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for name, stats in analyst_performance.items() %}
+                    <tr>
+                        <td>{{ name }}</td>
+                        <td>{{ stats.resolved }}</td>
+                        <td>{{ stats.mttr }}</td>
+                        <td>{{ stats.false_positives }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="alert alert-info">No analyst performance data available</div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- False Positives -->
+    <div class="card">
+        <div class="card-header">
+            <h5>False Positives by Model</h5>
+        </div>
+        <div class="card-body">
+            {% if false_positives %}
+            <canvas id="fpChart"></canvas>
+            {% else %}
+            <div class="alert alert-info">No false positive data available</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // MTTR Chart
+    {% if mttr_data %}
+    const mttrCtx = document.getElementById('mttrChart');
+    if (mttrCtx) {
+        new Chart(mttrCtx, {
+            type: 'bar',
+            data: {
+                labels: ['Critical', 'High', 'Medium', 'Low'],
+                datasets: [{
+                    label: 'Hours',
+                    data: [
+                        {{ mttr_data['Critical'].total_seconds() / 3600 }},
+                        {{ mttr_data['High'].total_seconds() / 3600 }},
+                        {{ mttr_data['Medium'].total_seconds() / 3600 }},
+                        {{ mttr_data['Low'].total_seconds() / 3600 }}
+                    ],
+                    backgroundColor: 'rgba(54, 162, 235, 0.7)'
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Hours'
+                        }
+                    }
+                }
+            }
+        });
+    }
+    {% endif %}
+
+    // Volume Trends Chart
+    {% if volume_trends and volume_trends.counts|sum > 0 %}
+    const volumeCtx = document.getElementById('volumeChart');
+    if (volumeCtx) {
+        new Chart(volumeCtx, {
+            type: 'line',
+            data: {
+                labels: {{ volume_trends.days|tojson }},
+                datasets: [{
+                    label: 'Alerts',
+                    data: {{ volume_trends.counts|tojson }},
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    }
+    {% endif %}
+
+    // False Positives Chart
+    {% if false_positives %}
+    const fpCtx = document.getElementById('fpChart');
+    if (fpCtx) {
+        new Chart(fpCtx, {
+            type: 'doughnut',
+            data: {
+                labels: {{ false_positives.keys()|list|tojson }},
+                datasets: [{
+                    data: {{ false_positives.values()|list|tojson }},
+                    backgroundColor: [
+                        'rgba(255, 99, 132, 0.7)',
+                        'rgba(54, 162, 235, 0.7)',
+                        'rgba(255, 206, 86, 0.7)',
+                        'rgba(75, 192, 192, 0.7)'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true
+            }
+        });
+    }
+    {% endif %}
+});
+</script>
+{% endblock %}

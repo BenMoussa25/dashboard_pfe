@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mt-4">Monitoring Systems Health</h1>
+    <p class="text-muted">Last updated: {{ now|format_datetime }}</p>
+    
+    <div class="row">
+        {% for name, status in health_status.items() %}
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-{% if status.status == 'Online' %}success{% elif status.status == 'Offline' %}danger{% else %}warning{% endif %} shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-uppercase mb-1">
+                                {{ name }}
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ status.status }}
+                            </div>
+                            <div class="text-xs text-muted mt-1">
+                                Last Active: {% if status.last_active %}{{ status.last_active|format_datetime }}{% else %}Never{% endif %}
+                            </div>
+                            <div class="text-xs text-muted">
+                                Processed: {{ status.incidents_processed }} incidents
+                            </div>
+                            <div class="text-xs text-muted">
+                                Error Rate: {{ (status.error_rate * 100)|round(2) }}%
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-{% if status.status == 'Online' %}check-circle{% elif status.status == 'Offline' %}times-circle{% else %}exclamation-circle{% endif %} fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <a href="#" class="btn btn-sm btn-primary" data-toggle="modal" data-target="#detailsModal{{ loop.index }}">Details</a>
+                    {% if status.status == 'Online' %}
+                    <form action="{{ url_for('main.stop_monitoring', model_name=name) }}" method="POST" class="d-inline">
+                        <button type="submit" class="btn btn-sm btn-danger">Stop</button>
+                    </form>
+                    {% else %}
+                    <form action="{{ url_for('main.start_monitoring', model_name=name) }}" method="POST" class="d-inline">
+                        <button type="submit" class="btn btn-sm btn-success">Start</button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Details Modal -->
+        <div class="modal fade" id="detailsModal{{ loop.index }}" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">{{ name }} - Detailed Status</h5>
+                        <button type="button" class="close" data-dismiss="modal">
+                            <span>&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <pre>{{ status.details|tojson(indent=2) }}</pre>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

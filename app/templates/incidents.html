@@ -1,0 +1,262 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>Incident Management</h2>
+    <div>
+        <button class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#filtersModal">
+            <i class="bi bi-funnel"></i> Filters
+        </button>
+        <div class="btn-group">
+            <button class="btn btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                Bulk Actions
+            </button>
+            <ul class="dropdown-menu">
+                <li><a class="dropdown-item" href="#" id="bulkAssign">Assign to Analyst</a></li>
+                <li><a class="dropdown-item" href="#" id="bulkClose">Close Selected</a></li>
+                <li><a class="dropdown-item" href="#" id="bulkEscalate">Escalate Severity</a></li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+
+<!-- Monitoring Services Status -->
+<div class="row mb-4">
+    {% for service_id, service in monitoring_data.services.items() %}
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-header {% if service.is_active %}bg-success text-white{% else %}bg-light{% endif %}">
+                <h6 class="mb-0">{{ service.name }}</h6>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="badge bg-{{ 'success' if service.is_active else 'danger' }}">
+                        {{ 'Active' if service.is_active else 'Inactive' }}
+                    </span>
+                    <small class="text-muted">{{ service.last_check }}</small>
+                </div>
+                <div class="mt-2">
+                    <small class="text-muted">{{ service.description }}</small>
+                </div>
+                {% if service.status_data.error %}
+                <div class="alert alert-danger mt-2 mb-0 py-1">
+                    {{ service.status_data.error }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Filters Modal -->
+<div class="modal fade" id="filtersModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Filter Incidents</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="incidentFilters">
+                    <div class="mb-3">
+                        <label class="form-label">Time Range</label>
+                        <select class="form-select" name="time_range">
+                            <option value="1h">Last 1 hour</option>
+                            <option value="24h">Last 24 hours</option>
+                            <option value="7d">Last 7 days</option>
+                            <option value="30d">Last 30 days</option>
+                            <option value="all" selected>All time</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Incident Type</label>
+                        <select class="form-select" name="type" multiple>
+                            <option value="Phishing">Phishing</option>
+                            <option value="Malware">Malware</option>
+                            <option value="DDoS">DDoS</option>
+                            <option value="Data Exfiltration">Data Exfiltration</option>
+                            <option value="Insider Threat">Insider Threat</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Status</label>
+                        <div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="filterNew" value="New" checked>
+                                <label class="form-check-label" for="filterNew">New</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="filterInProgress" value="In Progress" checked>
+                                <label class="form-check-label" for="filterInProgress">In Progress</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="filterClosed" value="Closed">
+                                <label class="form-check-label" for="filterClosed">Closed</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="filterFalsePositive" value="False Positive">
+                                <label class="form-check-label" for="filterFalsePositive">False Positive</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Severity</label>
+                        <div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="filterCritical" value="Critical" checked>
+                                <label class="form-check-label" for="filterCritical">Critical</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="filterHigh" value="High" checked>
+                                <label class="form-check-label" for="filterHigh">High</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="filterMedium" value="Medium">
+                                <label class="form-check-label" for="filterMedium">Medium</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="filterLow" value="Low">
+                                <label class="form-check-label" for="filterLow">Low</label>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="applyFilters">Apply Filters</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Incidents Table -->
+<div class="table-responsive">
+    <table class="table table-hover" id="incidentsTable">
+        <thead>
+            <tr>
+                <th><input type="checkbox" id="selectAll"></th>
+                <th>ID</th>
+                <th>Source</th>
+                <th>Type</th>
+                <th>Severity</th>
+                <th>Status</th>
+                <th>Assigned Analyst</th>
+                <th>Timestamp</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for incident in incidents %}
+            <tr>
+                <td><input type="checkbox" class="incident-checkbox" value="{{ incident.id }}"></td>
+                <td><a href="/incident/{{ incident.id }}">{{ incident.id[:8] }}</a></td>
+                <td>{{ incident.monitoring_system }}</td>
+                <td>{{ incident.type }}</td>
+                <td>
+                    <span class="badge bg-{{ 'danger' if incident.severity == 'Critical' else 'warning' if incident.severity == 'High' else 'info' if incident.severity == 'Medium' else 'secondary' }}">
+                        {{ incident.severity }}
+                    </span>
+                </td>
+                <td>
+                    <span class="badge bg-{{ 'primary' if incident.status == 'New' else 'info' if incident.status == 'In Progress' else 'success' if incident.status == 'Closed' else 'secondary' }}">
+                        {{ incident.status }}
+                    </span>
+                </td>
+                <td>{{ incident.assigned_user.username if incident.assigned_user else 'Unassigned' }}</td>
+                <td>{{ incident.timestamp|format_datetime }}</td>
+                <td>
+                    <div class="btn-group btn-group-sm">
+                        <a href="/incident/{{ incident.id }}" class="btn btn-outline-primary" title="View">
+                            <i class="bi bi-eye"></i>
+                        </a>
+                        <button class="btn btn-outline-secondary" title="Assign" data-incident-id="{{ incident.id }}">
+                            <i class="bi bi-person-plus"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<nav aria-label="Incident pagination">
+    <ul class="pagination justify-content-center">
+        <li class="page-item disabled">
+            <a class="page-link" href="#" tabindex="-1">Previous</a>
+        </li>
+        <li class="page-item active"><a class="page-link" href="#">1</a></li>
+        <li class="page-item"><a class="page-link" href="#">2</a></li>
+        <li class="page-item"><a class="page-link" href="#">3</a></li>
+        <li class="page-item">
+            <a class="page-link" href="#">Next</a>
+        </li>
+    </ul>
+</nav>
+
+<script>
+$(document).ready(function() {
+    // Initialize DataTable for sorting
+    $('#incidentsTable').DataTable({
+        columnDefs: [
+            { orderable: false, targets: [0, 8] } // Disable sorting for checkbox and actions columns
+        ],
+        order: [[7, 'desc']] // Default sort by timestamp descending
+    });
+    
+    // Select all checkboxes
+    $('#selectAll').click(function() {
+        $('.incident-checkbox').prop('checked', this.checked);
+    });
+    
+    // Bulk action handlers
+    $('#bulkAssign').click(function() {
+        const selected = $('.incident-checkbox:checked').map(function() {
+            return $(this).val();
+        }).get();
+        
+        if (selected.length > 0) {
+            // Implement assign logic
+            alert(`Assign ${selected.length} incidents to analyst`);
+        } else {
+            alert('Please select at least one incident');
+        }
+    });
+    
+    $('#bulkClose').click(function() {
+        const selected = $('.incident-checkbox:checked').map(function() {
+            return $(this).val();
+        }).get();
+        
+        if (selected.length > 0) {
+            if (confirm(`Close ${selected.length} selected incidents?`)) {
+                // Implement close logic
+            }
+        } else {
+            alert('Please select at least one incident');
+        }
+    });
+    
+    $('#bulkEscalate').click(function() {
+        const selected = $('.incident-checkbox:checked').map(function() {
+            return $(this).val();
+        }).get();
+        
+        if (selected.length > 0) {
+            // Implement escalate logic
+            alert(`Escalate ${selected.length} incidents`);
+        } else {
+            alert('Please select at least one incident');
+        }
+    });
+
+    // Auto-refresh every 60 seconds
+    setInterval(function() {
+        location.reload();
+    }, 60000);
+});
+</script>
+{% endblock %}

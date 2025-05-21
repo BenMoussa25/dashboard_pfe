@@ -1,0 +1,846 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>ML Model Management</h1>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addModelModal">
+            <i class="bi bi-plus-lg"></i> Add Model
+        </button>
+    </div>
+
+    <!-- Status Alert -->
+    <div id="modelStatusAlert" class="alert alert-info d-none">
+        <i class="bi bi-arrow-repeat"></i> Checking model statuses...
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover" id="modelsTable">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Type</th>
+                            <th>Status</th>
+                            <th>Endpoint</th>
+                            <th>Last Check</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="modelsTableBody">
+                        {% for model in models %}
+                        <tr data-model-id="{{ model.id }}">
+                            <td>{{ model.name }}</td>
+                            <td>{{ model.model_type|capitalize }}</td>
+                            <td>
+                                <span class="badge bg-secondary status-badge" id="status-{{ model.id }}">
+                                    <i class="bi bi-hourglass"></i> Checking...
+                                </span>
+                            </td>
+                            <td><code>{{ model.endpoint }}</code></td>
+                            <td id="lastCheck-{{ model.id }}">Never</td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-outline-primary health-check"
+                                            data-model-id="{{ model.id }}"
+                                            data-model-name="{{ model.name }}"
+                                            data-model-endpoint="{{ model.endpoint }}">
+                                        <i class="bi bi-heart-pulse"></i> Health
+                                    </button>
+                                    <button class="btn btn-outline-success test-model"
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#testModelModal"
+                                            data-model-id="{{ model.id }}"
+                                            data-model-name="{{ model.name }}"
+                                            data-model-type="{{ model.model_type }}"
+                                            data-model-endpoint="{{ model.endpoint }}">
+                                        <i class="bi bi-lightning-charge"></i> Test
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Test Model Modal -->
+<div class="modal fade" id="testModelModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Test Model: <span id="testModelName"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="testInputSection">
+                    <!-- Dynamic input fields will be inserted here -->
+                </div>
+                
+                <div class="d-flex align-items-center mt-3">
+                    <button class="btn btn-sm btn-outline-secondary me-2" id="useSampleData">
+                        <i class="bi bi-file-earmark-code"></i> Use Sample Data
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" id="validateJson">
+                        <i class="bi bi-check-circle"></i> Validate JSON
+                    </button>
+                </div>
+                
+                <div id="testResults" class="mt-3 d-none">
+                    <h5><i class="bi bi-clipboard-data"></i> Test Results</h5>
+                    <div class="card mb-3">
+                        <div class="card-header d-flex justify-content-between">
+                            <span>Model Prediction</span>
+                            <button class="btn btn-sm btn-outline-secondary copy-results">
+                                <i class="bi bi-clipboard"></i> Copy
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <h6>Confidence Score</h6>
+                                        <div class="progress" style="height: 30px;">
+                                            <div id="confidenceBar" class="progress-bar" role="progressbar" style="width: 0%"></div>
+                                        </div>
+                                        <div class="text-center mt-2">
+                                            <span id="confidenceValue" class="fw-bold">0.0</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <h6>Prediction</h6>
+                                        <span id="predictionBadge" class="badge rounded-pill fs-5 p-2">
+                                            <i class="bi bi-hourglass"></i> Calculating...
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-3">
+                                <h6>Input Features</h6>
+                                <pre id="featuresDisplay" class="p-3 bg-light rounded"></pre>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">Performance Metrics</div>
+                                <div class="card-body">
+                                    <ul class="list-group list-group-flush">
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            Response Time
+                                            <span class="badge bg-primary rounded-pill" id="responseTime">0 ms</span>
+                                        </li>
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            HTTP Status
+                                            <span class="badge bg-info rounded-pill" id="httpStatus">200</span>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">Endpoint Used</div>
+                                <div class="card-body">
+                                    <code id="endpointUsed"></code>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="errorDetails" class="mt-3"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="runTest">
+                    <i class="bi bi-lightning-charge"></i> Run Test
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Health Details Modal -->
+<div class="modal fade" id="healthModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Health Details: <span id="healthModelName"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="card mb-3">
+                            <div class="card-header bg-primary text-white">
+                                <i class="bi bi-heart-pulse"></i> Overall Status
+                            </div>
+                            <div class="card-body text-center">
+                                <span class="badge rounded-pill fs-5 p-2" id="overallStatusBadge">
+                                    <i class="bi bi-hourglass"></i> Loading...
+                                </span>
+                                <p class="mt-2 mb-0"><small>Last checked: <span id="healthTimestamp">-</span></small></p>
+                            </div>
+                        </div>
+                        
+                        <div class="card mb-3">
+                            <div class="card-header bg-primary text-white">
+                                <i class="bi bi-pc-display"></i> System Resources
+                            </div>
+                            <div class="card-body" id="systemResources">
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span>CPU Usage:</span>
+                                    <span id="cpuUsage">-</span>
+                                </div>
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span>Memory Usage:</span>
+                                    <span id="memoryUsage">-</span>
+                                </div>
+                                <div class="d-flex justify-content-between">
+                                    <span>Disk Usage:</span>
+                                    <span id="diskUsage">-</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-8">
+                        <div class="card">
+                            <div class="card-header bg-primary text-white">
+                                <i class="bi bi-box-seam"></i> Components
+                            </div>
+                            <div class="card-body p-0">
+                                <div class="list-group list-group-flush" id="healthComponents">
+                                    <!-- Components will be inserted here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card mt-3">
+                    <div class="card-header bg-primary text-white">
+                        <i class="bi bi-activity"></i> API Statistics
+                    </div>
+                    <div class="card-body" id="apiStats">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span>Total Analyses:</span>
+                                    <span id="totalAnalyses">-</span>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span>Recent Analyses:</span>
+                                    <span id="recentAnalyses">-</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="refreshHealth">
+                    <i class="bi bi-arrow-repeat"></i> Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize tooltips
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+
+    // Check all model statuses on page load
+    checkAllModelStatuses();
+
+    // Health check button handler
+    document.querySelectorAll('.health-check').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const modelId = this.dataset.modelId;
+            const modelName = this.dataset.modelName;
+            const modelEndpoint = this.dataset.modelEndpoint;
+            
+            // Show health modal
+            document.getElementById('healthModelName').textContent = modelName;
+            document.getElementById('refreshHealth').dataset.modelEndpoint = modelEndpoint;
+            
+            const healthModal = new bootstrap.Modal(document.getElementById('healthModal'));
+            healthModal.show();
+            
+            // Load initial health data
+            fetchHealthData(modelEndpoint);
+        });
+    });
+
+    // Refresh health button
+    document.getElementById('refreshHealth').addEventListener('click', function() {
+        const endpoint = this.dataset.modelEndpoint;
+        fetchHealthData(endpoint);
+    });
+
+    // Test modal setup
+    const testModelModal = document.getElementById('testModelModal');
+    if (testModelModal) {
+        testModelModal.addEventListener('show.bs.modal', function(event) {
+            const button = event.relatedTarget;
+            const modelId = button.dataset.modelId;
+            const modelName = button.dataset.modelName;
+            const modelType = button.dataset.modelType;
+            const modelEndpoint = button.dataset.modelEndpoint;
+            
+            document.getElementById('testModelName').textContent = modelName;
+            document.getElementById('runTest').dataset.modelId = modelId;
+            document.getElementById('runTest').dataset.modelType = modelType;
+            document.getElementById('runTest').dataset.modelEndpoint = modelEndpoint;
+            
+            // Clear previous results
+            document.getElementById('testResults').classList.add('d-none');
+            document.getElementById('errorDetails').innerHTML = '';
+            
+            // Set up input fields based on model type
+            setupTestInputs(modelType);
+        });
+    }
+
+    // Run test button handler
+    document.getElementById('runTest').addEventListener('click', async function() {
+        const modelId = this.dataset.modelId;
+        const modelType = this.dataset.modelType;
+        const modelEndpoint = this.dataset.modelEndpoint;
+        
+        const resultsDiv = document.getElementById('testResults');
+        const responseTimeSpan = document.getElementById('responseTime');
+        const httpStatusSpan = document.getElementById('httpStatus');
+        const errorDetails = document.getElementById('errorDetails');
+        
+        // Show loading state
+        this.disabled = true;
+        this.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Testing...';
+        resultsDiv.classList.add('d-none');
+        errorDetails.innerHTML = '';
+        
+        try {
+            let response;
+            const startTime = performance.now();
+            
+            if (modelType === 'malware') {
+                const fileInput = document.getElementById('testInputFile');
+                if (!fileInput.files.length) {
+                    throw new Error('Please select a file to test');
+                }
+                
+                const formData = new FormData();
+                formData.append('file', fileInput.files[0]);
+                
+                response = await fetch(`/api/ml-models/${modelId}/test`, {
+                    method: 'POST',
+                    body: formData
+                });
+            } else if (modelType === 'phishing') {
+                const inputData = {
+                    url: document.getElementById('testInputUrl').value,
+                    content: document.getElementById('testInputContent').value,
+                    sender: document.getElementById('testInputSender').value,
+                    subject: document.getElementById('testInputSubject').value
+                };
+                
+                response = await fetch(`/api/ml-models/${modelId}/test`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(inputData)
+                });
+            } else {  // For Windows logs and other JSON-based models
+                const inputData = document.getElementById('testInputData').value;
+                const jsonData = JSON.parse(inputData);
+                
+                response = await fetch(`/api/ml-models/${modelId}/test`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(jsonData)
+                });
+            }
+            
+            const endTime = performance.now();
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(data.error || 'Test failed');
+            }
+
+            // Handle response based on model type
+            const prediction = data.prediction || data;
+            let confidence, features, isThreat;
+            
+            if (modelType === 'phishing') {
+                confidence = parseFloat(prediction.confidence || prediction.score || 0);
+                features = {
+                    url: prediction.url || document.getElementById('testInputUrl').value,
+                    reasons: prediction.reasons || [],
+                    score: prediction.score
+                };
+                isThreat = prediction.is_phishing || false;
+            } else {
+                confidence = parseFloat(prediction.confidence || 0);
+                features = prediction.features || (inputData ? JSON.parse(inputData) : {});
+                isThreat = confidence > 0.95;
+            }
+
+            if (isNaN(confidence)) {
+                throw new Error('Invalid confidence value in response');
+            }
+
+            // Update confidence display
+            document.getElementById('confidenceValue').textContent = confidence.toFixed(6);
+            const confidenceBar = document.getElementById('confidenceBar');
+            confidenceBar.style.width = `${confidence * 100}%`;
+            confidenceBar.className = `progress-bar ${isThreat ? 'bg-danger' : 'bg-success'}`;
+
+            // Update prediction badge
+            const predictionBadge = document.getElementById('predictionBadge');
+            if (modelType === 'phishing') {
+                predictionBadge.innerHTML = isThreat 
+                    ? '<i class="bi bi-exclamation-triangle"></i> PHISHING' 
+                    : '<i class="bi bi-check-circle"></i> LEGITIMATE';
+            } else {
+                predictionBadge.innerHTML = isThreat 
+                    ? '<i class="bi bi-exclamation-triangle"></i> THREAT' 
+                    : '<i class="bi bi-check-circle"></i> NORMAL';
+            }
+            predictionBadge.className = `badge rounded-pill fs-5 p-2 ${isThreat ? 'bg-danger' : 'bg-success'}`;
+
+            // Display features
+            document.getElementById('featuresDisplay').textContent = JSON.stringify(features, null, 2);
+
+            // Performance metrics
+            document.getElementById('responseTime').textContent = `${(endTime - startTime).toFixed(2)} ms`;
+            document.getElementById('httpStatus').textContent = response.status;
+            document.getElementById('endpointUsed').textContent = modelEndpoint + 
+                (modelType === 'phishing' ? '/scan-url' : '/predict');
+
+            // Show results
+            document.getElementById('testResults').classList.remove('d-none');
+            
+        } catch (error) {
+            const endTime = performance.now();
+            document.getElementById('featuresDisplay').textContent = error.message;
+            document.getElementById('responseTime').textContent = `${(endTime - startTime).toFixed(2)} ms`;
+            document.getElementById('httpStatus').textContent = 'Error';
+            document.getElementById('httpStatus').className = 'badge bg-danger rounded-pill';
+            
+            // Show troubleshooting tips
+            errorDetails.innerHTML = `
+                <div class="alert alert-danger mt-3">
+                    <h6><i class="bi bi-exclamation-triangle"></i> Troubleshooting</h6>
+                    <ul>
+                        <li>Verify the model service is running at: <code>${modelEndpoint}</code></li>
+                        <li>Check the browser console for detailed errors</li>
+                        <li>Review the model service logs</li>
+                    </ul>
+                </div>`;
+            
+            console.error('Test failed:', error);
+        } finally {
+            resultsDiv.classList.remove('d-none');
+            this.disabled = false;
+            this.innerHTML = '<i class="bi bi-lightning-charge"></i> Run Test';
+            resultsDiv.scrollIntoView({ behavior: 'smooth' });
+        }
+    });
+
+    // Use sample data button
+    document.getElementById('useSampleData').addEventListener('click', function() {
+        const modelType = document.getElementById('runTest').dataset.modelType;
+        
+        if (modelType === 'phishing') {
+            document.getElementById('testInputUrl').value = 'https://example.com/login';
+            document.getElementById('testInputContent').value = 'Please login to verify your account';
+            document.getElementById('testInputSender').value = 'support@example.com';
+            document.getElementById('testInputSubject').value = 'Urgent: Account Verification Required';
+        } else if (modelType === 'windows_log') {
+            document.getElementById('testInputData').value = `{
+  "event_id": 4624,
+  "log_type": "Security",
+  "source_ip": "192.168.1.100",
+  "user": "DOMAIN\\\\user",
+  "timestamp": "${new Date().toISOString()}"
+}`;
+        } else if (modelType === 'anomaly') {
+            document.getElementById('testInputData').value = `{
+  "duration": 0,
+  "protocol_type": "tcp",
+  "service": "http",
+  "flag": "SF",
+  "src_bytes": 100,
+  "dst_bytes": 0,
+  "land": 0,
+  "wrong_fragment": 0,
+  "urgent": 0
+}`;
+        }
+    });
+
+    // Validate JSON button
+    document.getElementById('validateJson').addEventListener('click', function() {
+        const modelType = document.getElementById('runTest').dataset.modelType;
+        
+        // Only validate JSON for models that use JSON input
+        if (modelType !== 'malware' && modelType !== 'phishing') {
+            try {
+                const textarea = document.getElementById('testInputData');
+                JSON.parse(textarea.value);
+                
+                const toast = new bootstrap.Toast(document.getElementById('jsonToast'));
+                document.getElementById('toastMessage').textContent = 'JSON is valid!';
+                document.getElementById('toastHeader').className = 'toast-header text-white bg-success';
+                toast.show();
+            } catch (e) {
+                const toast = new bootstrap.Toast(document.getElementById('jsonToast'));
+                document.getElementById('toastMessage').textContent = `Invalid JSON: ${e.message}`;
+                document.getElementById('toastHeader').className = 'toast-header text-white bg-danger';
+                toast.show();
+            }
+        }
+    });
+
+    // Copy results button
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('copy-results')) {
+            const featuresDisplay = document.getElementById('featuresDisplay');
+            navigator.clipboard.writeText(featuresDisplay.textContent);
+            
+            const tooltip = new bootstrap.Tooltip(e.target, {
+                title: 'Copied!',
+                trigger: 'manual'
+            });
+            tooltip.show();
+            setTimeout(() => tooltip.hide(), 1000);
+        }
+    });
+
+    // ============== Helper Functions ==============
+    
+    function checkAllModelStatuses() {
+        document.getElementById('modelStatusAlert').classList.remove('d-none');
+        
+        document.querySelectorAll('#modelsTableBody tr').forEach(row => {
+            const modelId = row.dataset.modelId;
+            const modelName = row.querySelector('td:first-child').textContent;
+            checkModelHealth(modelId, modelName);
+        });
+    }
+
+    async function checkModelHealth(modelId, modelName) {
+        const statusBadge = document.getElementById(`status-${modelId}`);
+        const lastCheckCell = document.getElementById(`lastCheck-${modelId}`);
+        
+        statusBadge.innerHTML = '<i class="bi bi-hourglass"></i> Checking...';
+        statusBadge.className = 'badge bg-secondary status-badge';
+        
+        try {
+            const response = await fetch(`/api/ml-models/${modelId}/health`);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            
+            const data = await response.json();
+            lastCheckCell.textContent = new Date().toLocaleTimeString();
+            
+            if (data.status === 'healthy') {
+                statusBadge.innerHTML = '<i class="bi bi-check-circle"></i> Healthy';
+                statusBadge.className = 'badge bg-success status-badge';
+            } else {
+                statusBadge.innerHTML = '<i class="bi bi-exclamation-triangle"></i> Degraded';
+                statusBadge.className = 'badge bg-warning status-badge';
+            }
+            
+            // Add tooltip with timestamp
+            statusBadge.title = `Last checked: ${lastCheckCell.textContent}`;
+            new bootstrap.Tooltip(statusBadge);
+            
+        } catch (error) {
+            console.error(`Health check failed for ${modelName}:`, error);
+            statusBadge.innerHTML = '<i class="bi bi-x-circle"></i> Unavailable';
+            statusBadge.className = 'badge bg-danger status-badge';
+            lastCheckCell.textContent = new Date().toLocaleTimeString();
+        } finally {
+            document.getElementById('modelStatusAlert').classList.add('d-none');
+        }
+    }
+
+    async function fetchHealthData(endpoint) {
+        const healthUrl = `${endpoint}/health`;
+        const refreshBtn = document.getElementById('refreshHealth');
+        
+        // Show loading state
+        refreshBtn.disabled = true;
+        refreshBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Refreshing...';
+        
+        // Clear previous data while loading
+        document.getElementById('overallStatusBadge').innerHTML = '<i class="bi bi-hourglass"></i> Loading...';
+        document.getElementById('overallStatusBadge').className = 'badge bg-secondary rounded-pill fs-5 p-2';
+        
+        try {
+            const response = await fetch(healthUrl);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            
+            const data = await response.json();
+            updateHealthUI(data);
+            
+        } catch (error) {
+            console.error('Error fetching health data:', error);
+            document.getElementById('overallStatusBadge').innerHTML = '<i class="bi bi-x-circle"></i> Unavailable';
+            document.getElementById('overallStatusBadge').className = 'badge bg-danger rounded-pill fs-5 p-2';
+            document.getElementById('healthTimestamp').textContent = new Date().toLocaleString();
+            
+            // Show error details
+            const componentsContainer = document.getElementById('healthComponents');
+            componentsContainer.innerHTML = `
+                <div class="alert alert-danger">
+                    <strong>Failed to fetch health data:</strong><br>
+                    ${error.message}<br><br>
+                    <strong>Troubleshooting:</strong>
+                    <ul>
+                        <li>Verify the model service is running at: <code>${endpoint}</code></li>
+                        <li>Check if the endpoint is accessible from this server</li>
+                        <li>Review service logs for errors</li>
+                    </ul>
+                </div>`;
+        } finally {
+            refreshBtn.disabled = false;
+            refreshBtn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Refresh';
+        }
+    }
+
+    function updateHealthUI(healthData) {
+        // Update overall status
+        const overallStatus = healthData.status;
+        const statusBadge = document.getElementById('overallStatusBadge');
+        statusBadge.innerHTML = overallStatus === 'healthy' 
+            ? '<i class="bi bi-check-circle"></i> Healthy' 
+            : '<i class="bi bi-exclamation-triangle"></i> Degraded';
+        statusBadge.className = overallStatus === 'healthy'
+            ? 'badge bg-success rounded-pill fs-5 p-2'
+            : 'badge bg-warning rounded-pill fs-5 p-2';
+        
+        // Update timestamp
+        document.getElementById('healthTimestamp').textContent = healthData.timestamp;
+        
+        // Update system resources
+        if (healthData.components?.system_resources) {
+            const sys = healthData.components.system_resources;
+            document.getElementById('cpuUsage').textContent = sys.cpu_usage;
+            document.getElementById('memoryUsage').textContent = sys.memory_usage;
+            document.getElementById('diskUsage').textContent = sys.disk_usage;
+        }
+        
+        // Update API stats
+        if (healthData.components?.api_stats) {
+            const stats = healthData.components.api_stats;
+            document.getElementById('totalAnalyses').textContent = stats.total_analyses;
+            document.getElementById('recentAnalyses').textContent = stats.recent_analyses;
+        }
+        
+        // Update components list
+        const componentsContainer = document.getElementById('healthComponents');
+        componentsContainer.innerHTML = '';
+        
+        if (healthData.components) {
+            for (const [componentName, componentData] of Object.entries(healthData.components)) {
+                if (componentName === 'system_resources' || componentName === 'api_stats') continue;
+                
+                const componentItem = document.createElement('div');
+                componentItem.className = 'list-group-item';
+                
+                let componentHtml = `
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>${componentName.replace('_', ' ').toUpperCase()}</strong>
+                            <div class="text-muted small">`;
+                
+                // Add component-specific details
+                for (const [key, value] of Object.entries(componentData)) {
+                    if (key !== 'status') {
+                        componentHtml += `<div>${key}: ${value}</div>`;
+                    }
+                }
+                
+                componentHtml += `
+                            </div>
+                        </div>
+                        <span class="badge ${componentData.status === 'healthy' ? 'bg-success' : 'bg-warning'}">
+                            ${componentData.status}
+                        </span>
+                    </div>`;
+                
+                componentItem.innerHTML = componentHtml;
+                componentsContainer.appendChild(componentItem);
+            }
+        }
+    }
+
+    function setupTestInputs(modelType) {
+        const inputSection = document.getElementById('testInputSection');
+        inputSection.innerHTML = '';
+        
+        let inputHtml = `<h5><i class="bi bi-sliders"></i> Test Parameters</h5>`;
+        
+        if (modelType === 'malware') {
+            inputHtml = `
+                <div class="mb-3">
+                    <label class="form-label">Upload Test File</label>
+                    <input type="file" class="form-control" id="testInputFile">
+                    <div class="form-text">Upload a file to scan for malware</div>
+                </div>`;
+        } else if (modelType === 'phishing') {
+            inputHtml += `
+                <div class="mb-3">
+                    <label class="form-label">URL to Analyze</label>
+                    <input type="url" class="form-control" id="testInputUrl" 
+                           placeholder="https://example.com/login">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Email Content</label>
+                    <textarea class="form-control" id="testInputContent" rows="4"
+                              placeholder="Email content to analyze"></textarea>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Sender</label>
+                            <input type="text" class="form-control" id="testInputSender"
+                                   placeholder="sender@example.com">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Subject</label>
+                            <input type="text" class="form-control" id="testInputSubject"
+                                   placeholder="Urgent: Account Verification Required">
+                        </div>
+                    </div>
+                </div>`;
+        } else {  // For Windows logs and other JSON-based models
+            inputHtml += `
+                <div class="mb-3">
+                    <label class="form-label">Input Data (JSON)</label>
+                    <textarea class="form-control font-monospace" id="testInputData" rows="8">`;
+            
+            if (modelType === 'windows_log') {
+                inputHtml += `{
+  "event_id": 4624,
+  "log_type": "Security",
+  "source_ip": "192.168.1.100",
+  "user": "DOMAIN\\\\user",
+  "timestamp": "${new Date().toISOString()}"
+}`;
+            } else {
+                inputHtml += `{
+  "duration": 0,
+  "protocol_type": "tcp",
+  "service": "http",
+  "flag": "SF",
+  "src_bytes": 100,
+  "dst_bytes": 0,
+  "land": 0,
+  "wrong_fragment": 0,
+  "urgent": 0
+}`;
+            }
+            
+            inputHtml += `</textarea></div>`;
+        }
+        
+        inputSection.innerHTML = inputHtml;
+    }
+});
+</script>
+
+<style>
+.status-badge {
+    min-width: 120px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+}
+
+.font-monospace {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.9em;
+}
+
+#featuresDisplay {
+    max-height: 200px;
+    overflow-y: auto;
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 0.25rem;
+    padding: 1rem;
+}
+
+#testInputSection .form-control {
+    margin-bottom: 10px;
+}
+
+#testInputSection textarea.form-control {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.9em;
+}
+
+.form-text {
+    font-size: 0.8em;
+    color: #6c757d;
+}
+
+.progress {
+    background-color: #e9ecef;
+    border-radius: 0.25rem;
+    height: 30px;
+}
+
+.progress-bar {
+    transition: width 0.6s ease;
+}
+
+#predictionBadge {
+    min-width: 180px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+}
+
+.toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1100;
+}
+</style>
+
+<!-- Toast Notification -->
+<div class="toast-container">
+    <div id="jsonToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+        <div id="toastHeader" class="toast-header">
+            <strong class="me-auto">JSON Validation</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+        </div>
+        <div class="toast-body" id="toastMessage"></div>
+    </div>
+</div>
+{% endblock %}

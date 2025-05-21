@@ -1,0 +1,282 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h1 class="my-4">Analyst Workload Management</h1>
+    
+    <div class="row">
+        <!-- Analyst List -->
+        <div class="col-md-8">
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Analyst Workload</h5>
+                    <div>
+                        <button id="toggleFairDistribution" class="btn btn-sm btn-outline-primary me-2">
+                            <i class="bi bi-arrow-left-right"></i> Toggle Fair Distribution
+                        </button>
+                        <button id="autoAssign" class="btn btn-sm btn-primary">
+                            <i class="bi bi-magic"></i> Auto-Assign
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Analyst</th>
+                                <th>Open</th>
+                                <th>This Week</th>
+                                <th>Capacity</th>
+                                <th>Utilization</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for analyst in analysts %}
+                            <tr>
+                                <td>
+                                    <strong>{{ analyst.name }}</strong>
+                                    <br>
+                                    <small class="text-muted">ID: {{ analyst.id[:8] }}</small>
+                                </td>
+                                <td>
+                                    <span class="badge bg-{% if analyst.open_incidents > 10 %}danger{% elif analyst.open_incidents > 5 %}warning{% else %}success{% endif %}">
+                                        {{ analyst.open_incidents }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-info">{{ analyst.weekly_assigned }} assigned</span>
+                                    <span class="badge bg-success">{{ analyst.weekly_resolved }} resolved</span>
+                                </td>
+                                <td>{{ analyst.capacity }}</td>
+                                <td>
+                                    <div class="progress" style="height: 20px;">
+                                        {% set utilization = (analyst.open_incidents / analyst.capacity * 100) %}
+                                        <div class="progress-bar progress-bar-striped {% if utilization > 90 %}bg-danger{% elif utilization > 70 %}bg-warning{% else %}bg-success{% endif %}" 
+                                             role="progressbar" 
+                                             style="width: {{ utilization }}%"
+                                             aria-valuenow="{{ utilization }}" 
+                                             aria-valuemin="0" 
+                                             aria-valuemax="100">
+                                            {{ "%.1f"|format(utilization) }}%
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary view-assignments" 
+                                            data-analyst="{{ analyst.id }}"
+                                            title="View assignments">
+                                        <i class="bi bi-list-ul"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-secondary analyst-details"
+                                            data-analyst="{{ analyst.id }}"
+                                            title="View details">
+                                        <i class="bi bi-person-lines-fill"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Unassigned Incidents -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Unassigned Incidents ({{ unassigned_incidents|length }})</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush">
+                        {% for incident in unassigned_incidents %}
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <h6 class="mb-1">
+                                        <a href="{{ url_for('main.incident_detail', incident_id=incident.id) }}">
+                                            INC-{{ incident.id[:8] }}
+                                        </a>
+                                    </h6>
+                                    <small class="text-muted">
+                                        {{ incident.timestamp|format_datetime('%Y-%m-%d %H:%M') }}
+                                        <br>
+                                        {{ incident.type }}
+                                    </small>
+                                </div>
+                                <span class="badge bg-{% if incident.severity == 'Critical' %}danger{% elif incident.severity == 'High' %}warning{% elif incident.severity == 'Medium' %}info{% else %}secondary{% endif %}">
+                                    {{ incident.severity }}
+                                </span>
+                            </div>
+                            <p class="mb-2 text-truncate" style="max-width: 100%;">{{ incident.description|truncate(100) }}</p>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <small class="text-muted">Confidence: {{ "%.0f"|format(incident.confidence_score * 100) }}%</small>
+                                <select class="form-select form-select-sm assign-select" 
+                                        style="width: 60%;"
+                                        data-incident="{{ incident.id }}">
+                                    <option value="">Assign to...</option>
+                                    {% for analyst in analysts %}
+                                    <option value="{{ analyst.id }}" 
+                                            {% if analyst.adjusted_capacity <= 0 %}disabled{% endif %}>
+                                        {{ analyst.name }} ({{ analyst.adjusted_capacity }} avail)
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="list-group-item text-center text-muted py-4">
+                            <i class="bi bi-check-circle-fill text-success" style="font-size: 2rem;"></i>
+                            <p class="mt-2 mb-0">No unassigned incidents</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Analyst Details -->
+<div class="modal fade" id="analystModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Analyst Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="analystModalBody">
+                Loading...
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    // Assign incident
+    $('.assign-select').on('change', function() {
+        const analystId = $(this).val();
+        const incidentId = $(this).data('incident');
+        
+        if (analystId) {
+            fetch(`/workload/assign/${analystId}/${incidentId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        toastr.success(`Assigned incident to ${data.analyst}`);
+                        // Reload the page to update the view
+                        setTimeout(() => location.reload(), 1000);
+                    } else {
+                        toastr.error('Failed to assign incident');
+                    }
+                })
+                .catch(error => {
+                    toastr.error('Error assigning incident');
+                    console.error(error);
+                });
+        }
+    });
+
+    // Toggle fair distribution
+    $('#toggleFairDistribution').click(function() {
+        fetch('/workload/toggle-fair-distribution')
+            .then(response => response.json())
+            .then(data => {
+                toastr.info(data.message);
+            });
+    });
+
+    // Auto-assign button
+    $('#autoAssign').click(function() {
+        if (confirm('Auto-assign all unassigned incidents based on capacity?')) {
+            fetch('/workload/auto-assign', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        toastr.success(`Assigned ${data.assigned_count} incidents`);
+                        setTimeout(() => location.reload(), 1000);
+                    } else {
+                        toastr.error(data.message || 'Auto-assign failed');
+                    }
+                });
+        }
+    });
+
+    // Analyst details modal
+    $('.analyst-details').click(function() {
+        const analystId = $(this).data('analyst');
+        fetch(`/api/analysts/${analystId}`)
+            .then(response => response.json())
+            .then(data => {
+                $('#analystModalBody').html(`
+                    <h6>${data.name}</h6>
+                    <p>ID: ${data.id}</p>
+                    <hr>
+                    <p><strong>Current Workload:</strong> ${data.open_incidents} open incidents</p>
+                    <p><strong>Capacity:</strong> ${data.capacity} (${data.adjusted_capacity} available)</p>
+                    <p><strong>This Week:</strong> ${data.weekly_assigned} assigned, ${data.weekly_resolved} resolved</p>
+                    <hr>
+                    <h6>Recent Activity</h6>
+                    <ul>
+                        ${data.recent_activity.map(item => `<li>${item}</li>`).join('')}
+                    </ul>
+                `);
+                $('#analystModal').modal('show');
+            });
+    });
+});
+</script>
+
+<script>
+$(document).ready(function() {
+    // Load current settings
+    function loadSettings() {
+        fetch('/api/workload/settings')
+            .then(response => response.json())
+            .then(settings => {
+                const isEnabled = settings.fair_distribution_enabled;
+                $('#toggleFairDistribution').html(
+                    `<i class="bi ${isEnabled ? 'bi-toggle-on' : 'bi-toggle-off'}"></i> ` +
+                    `${isEnabled ? 'Disable' : 'Enable'} Fair Distribution`
+                ).toggleClass('btn-outline-primary', !isEnabled)
+                 .toggleClass('btn-primary', isEnabled);
+            });
+    }
+
+    // Initialize
+    loadSettings();
+
+    // Toggle fair distribution
+    $('#toggleFairDistribution').click(function() {
+        fetch('/workload/toggle-fair-distribution', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                toastr.success(data.message);
+                loadSettings();
+                
+                // If enabling, suggest auto-assign
+                if (data.new_status && $('.list-group-item').length > 1) { // Check if there are unassigned incidents
+                    toastr.info('Would you like to auto-assign incidents now? <button class="btn btn-sm btn-primary ms-2" onclick="runAutoAssign()">Auto-Assign</button>', 
+                               null, {timeOut: 10000, extendedTimeOut: 10000});
+                }
+            }
+        });
+    });
+
+    window.runAutoAssign = function() {
+        $('#autoAssign').click();
+    };
+});
+</script>
+{% endblock %}

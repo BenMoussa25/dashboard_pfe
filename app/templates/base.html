@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}SOC Dashboard{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        .content-wrap {
+            flex: 1;
+        }
+        footer {
+            background: #343a40;
+            color: white;
+            padding: 15px 0;
+            margin-top: auto;
+        }
+        .navbar-brand i {
+            margin-right: 8px;
+        }
+        .nav-item {
+            margin: 0 5px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Top Navigation Bar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{{ url_for('main.dashboard') }}">
+                <i class="bi bi-shield-lock"></i>SOC Dashboard
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    {% if current_user.is_authenticated and current_user.role in ['analyst','manager', 'admin'] %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('main.dashboard') }}">
+                            <i class="bi bi-speedometer2"></i> Dashboard
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% if current_user.is_authenticated and current_user.role in ['analyst','manager', 'admin'] %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('main.incidents') }}">
+                            <i class="bi bi-exclamation-triangle"></i> Incidents
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% if current_user.is_authenticated and current_user.role in ['analyst','manager', 'admin'] %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('main.analytics') }}">
+                            <i class="bi bi-graph-up"></i> Analytics
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% if current_user.is_authenticated and current_user.role in ['manager', 'admin'] %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('main.workload') }}">
+                            <i class="bi bi-people"></i> Workload
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('main.monitoring_dashboard') }}">
+                            <i class="bi bi-broadcast-pin"></i>
+                            <span>Monitoring Health</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                    {% if current_user.is_authenticated and current_user.role == 'admin' %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('main.ml_models') }}">
+                            <i class="bi bi-robot"></i> ML Models
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('main.llm_config') }}">
+                            <i class="bi bi-chat-square-text"></i> LLM Config
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+                <ul class="navbar-nav">
+                    {% if current_user.is_authenticated %}
+                    <li class="nav-item" style="margin-top: 9px;">
+                        <span class="navbar-text me-3">
+                            <i class="bi bi-person-circle"></i> {{ current_user.username }} ({{ current_user.role }})
+                        </span>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('auth.logout') }}">
+                            <i class="bi bi-box-arrow-right"></i> Logout
+                        </a>
+                    </li>
+                    {% else %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('auth.login') }}">
+                            <i class="bi bi-box-arrow-in-right"></i> Login
+                        </a>
+                    </li>
+                    {% endif %}
+                    
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="content-wrap">
+        <div class="container mt-4">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            {% block content %}{% endblock %}
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6 text-center text-md-start">
+                    <p class="mb-0">&copy; 2023 SOC Dashboard. All rights reserved.</p>
+                </div>
+                <div class="col-md-6 text-center text-md-end">
+                    <p class="mb-0">Version 1.0.0 | <a href="#" class="text-light">Privacy Policy</a></p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        $.ajaxSetup({
+            beforeSend: function(xhr) {
+                xhr.setRequestHeader('Authorization', 'Bearer ' + localStorage.getItem('access_token'));
+            }
+        });
+        
+        // Highlight active nav item
+        $(document).ready(function() {
+            const current = location.pathname;
+            $('.navbar-nav a').each(function() {
+                const $this = $(this);
+                if ($this.attr('href') === current) {
+                    $this.addClass('active');
+                    $this.append('<span class="visually-hidden">(current)</span>');
+                }
+            });
+        });
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

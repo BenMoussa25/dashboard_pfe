@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <!-- Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card text-white bg-primary">
+                <div class="card-body">
+                    <h5 class="card-title">Today's Alerts</h5>
+                    <h2 class="card-text">{{ today_alerts }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-white bg-info">
+                <div class="card-body">
+                    <h5 class="card-title">This Week</h5>
+                    <h2 class="card-text">{{ week_alerts }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-white bg-secondary">
+                <div class="card-body">
+                    <h5 class="card-title">This Month</h5>
+                    <h2 class="card-text">{{ month_alerts }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="row mb-4">
+        <!-- Severity Chart -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Incidents by Severity</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="severityChart"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Alert Types Chart -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Alert Types</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="alertTypeChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Workload and Status Row -->
+    <div class="row">
+        <!-- Analyst Workload -->
+        <div class="col-md-8">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>Analyst Workload</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Analyst</th>
+                                <th>Mon</th>
+                                <th>Tue</th>
+                                <th>Wed</th>
+                                <th>Thu</th>
+                                <th>Fri</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for analyst, days in workload_data.items() %}
+                            <tr>
+                                <td>{{ analyst }}</td>
+                                <td>{{ days.Mon }}</td>
+                                <td>{{ days.Tue }}</td>
+                                <td>{{ days.Wed }}</td>
+                                <td>{{ days.Thu }}</td>
+                                <td>{{ days.Fri }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Model Status -->
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>ML Model Status</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group">
+                        {% for model, info in model_status.items() %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            {{ model }}
+                            <span class="badge bg-{% if info.status == 'healthy' %}success{% else %}warning{% endif %}">
+                                {{ info.status|capitalize }}
+                            </span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Reports -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Recent LLM Reports</h5>
+                </div>
+                <div class="card-body">
+                    <div class="list-group">
+                        {% for report in recent_reports %}
+                        <div class="list-group-item">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h6 class="mb-1">{{ report.title }}</h6>
+                                <small class="text-{% if report.severity == 'Critical' %}danger{% elif report.severity == 'High' %}warning{% else %}info{% endif %}">
+                                    {{ report.severity }}
+                                </small>
+                            </div>
+                            <p class="mb-1">{{ report.summary }}</p>
+                            <small>{{ report.timestamp }}</small>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Chart.js Scripts -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Severity Chart
+const severityCtx = document.getElementById('severityChart').getContext('2d');
+new Chart(severityCtx, {
+    type: 'bar',
+    data: {
+        labels: {{ severity_data.keys()|list|tojson }},
+        datasets: [{
+            label: 'Incidents by Severity',
+            data: {{ severity_data.values()|list|tojson }},
+            backgroundColor: [
+                'rgba(220, 53, 69, 0.7)', // Critical
+                'rgba(255, 193, 7, 0.7)',  // High
+                'rgba(13, 110, 253, 0.7)', // Medium
+                'rgba(25, 135, 84, 0.7)',  // Low
+                'rgba(108, 117, 125, 0.7)' // Info
+            ],
+            borderWidth: 1
+        }]
+    },
+    options: {
+        responsive: true,
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        }
+    }
+});
+
+// Alert Type Chart
+const alertTypeCtx = document.getElementById('alertTypeChart').getContext('2d');
+new Chart(alertTypeCtx, {
+    type: 'pie',
+    data: {
+        labels: {{ alert_data.keys()|list|tojson }},
+        datasets: [{
+            data: {{ alert_data.values()|list|tojson }},
+            backgroundColor: [
+                'rgba(255, 99, 132, 0.7)',
+                'rgba(54, 162, 235, 0.7)',
+                'rgba(255, 206, 86, 0.7)',
+                'rgba(75, 192, 192, 0.7)'
+            ],
+            borderWidth: 1
+        }]
+    },
+    options: {
+        responsive: true
+    }
+});
+</script>
+{% endblock %}
